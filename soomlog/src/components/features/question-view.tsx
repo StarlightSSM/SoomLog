@@ -25,6 +25,19 @@ export function QuestionView({
   const [selectedLevel, setSelectedLevel] = useState(1)
   const supabase = createClient()
 
+  const [feedback, setFeedback] = useState<{
+    score: number
+    communication: number
+    technical: number
+    accuracy: number
+    depth: number
+    strengths: string
+    weaknesses: string
+    follow_up_questions: string[]
+  } | null>(null)
+
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+
   const handleSubmit = async () => {
     if (!answer.trim()) return
     setSubmitting(true)
@@ -34,14 +47,40 @@ export function QuestionView({
     } = await supabase.auth.getUser()
     if (!user) return
 
-    await supabase.from('user_answers').insert({
-      user_id: user.id,
-      question_id: question.id,
-      content: answer,
-    })
+    const { data: inserted, error } = await supabase
+      .from('user_answers')
+      .insert({
+        user_id: user.id,
+        question_id: question.id,
+        content: answer,
+      })
+      .select()
+      .single()
 
     setSubmitting(false)
     setUnlocked(true)
+
+    if (error || !inserted) return
+
+    // AI 피드백 요청
+    setFeedbackLoading(true)
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAnswerId: inserted.id,
+          question: question.content,
+          answer,
+        }),
+      })
+      const data = await res.json()
+      if (data.feedback) setFeedback(data.feedback)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFeedbackLoading(false)
+    }
   }
 
   const levelLabels: Record<number, string> = {
@@ -113,9 +152,39 @@ export function QuestionView({
           title="AI 피드백"
           unlocked={unlocked}
           content={
-            <p className="text-sm text-gray-400">
-              AI 피드백 기능은 곧 연결됩니다. (다음 단계)
-            </p>
+            feedbackLoading ? (
+              <p className="text-sm text-gray-400">AI가 답변을 평가하고 있습니다...</p>
+            ) : feedback ? (
+              <div className="space-y-4">
+                <p className="text-2xl font-semibold text-blue-600">{feedback.score}점</p>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>Communication {'★'.repeat(feedback.communication)}{'☆'.repeat(5 - feedback.communication)}</div>
+                  <div>Technical {'★'.repeat(feedback.technical)}{'☆'.repeat(5 - feedback.technical)}</div>
+                  <div>Accuracy {'★'.repeat(feedback.accuracy)}{'☆'.repeat(5 - feedback.accuracy)}</div>
+                  <div>Depth {'★'.repeat(feedback.depth)}{'☆'.repeat(5 - feedback.depth)}</div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-green-600">좋았던 점</p>
+                  <p className="text-sm text-gray-700">{feedback.strengths}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-red-500">부족한 점</p>
+                  <p className="text-sm text-gray-700">{feedback.weaknesses}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">꼬리질문</p>
+                  <ul className="mt-1 space-y-1 text-sm text-gray-700">
+                    {feedback.follow_up_questions?.map((q, i) => (
+                      <li key={i}>Q{i + 1}. {q}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">AI 피드백을 불러오지 못했습니다.</p>
+            )
           }
         />
       </div>
