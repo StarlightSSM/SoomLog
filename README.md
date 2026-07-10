@@ -226,7 +226,9 @@ cd SoomLog
 npm install
 
 npm run dev
+
 🎯 Roadmap
+
 Phase 1
  프로젝트 초기 세팅
  로그인
@@ -234,27 +236,27 @@ Phase 1
  질문 목록
  답변 작성
  Unlock 기능
+
 Phase 2
  AI 피드백
  AI 모범답안
  꼬리질문
  학습 기록
  Dashboard
+
 Phase 3
  음성 면접
  AI 면접관
  통계
  PDF 리포트
  다크모드
+
 💡 Vision
 
 SoomLog는 단순한 CS 문제집이 아닙니다.
 
 생각하고, 답하고, 피드백을 받고, 성장하는 경험을 제공하는 AI Interview Platform을 목표로 합니다.
 
-<div align="center">
 ⭐ Practice. Reflect. Grow.
 
 Made with ❤️ by Sumin Shin
-
-</div> ````
