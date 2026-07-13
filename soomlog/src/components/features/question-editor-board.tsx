@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core'
 import {
   SortableContext,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
   arrayMove,
 } from '@dnd-kit/sortable'
@@ -146,7 +146,7 @@ export function QuestionEditorBoard({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex flex-col gap-6">
           {categories.map((cat) => (
             <CategoryColumn
               key={cat.id}
@@ -206,7 +206,7 @@ function CategoryColumn({
   onCardClick: (q: Question) => void
 }) {
   return (
-    <div className="w-72 shrink-0 rounded-2xl bg-gray-50 p-3">
+    <div className="w-full rounded-2xl bg-gray-50 p-4">
       <div className="mb-3 flex items-center justify-between px-1">
         <h2 className="text-sm font-medium text-gray-700">{category.name}</h2>
         <button
@@ -219,10 +219,10 @@ function CategoryColumn({
 
       <SortableContext
         items={questions.map((q) => q.id)}
-        strategy={verticalListSortingStrategy}
+        strategy={rectSortingStrategy}
         id={category.id}
       >
-        <div className="min-h-10 space-y-2">
+        <div className="grid min-h-10 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {questions.map((q) => (
             <SortableQuestionCard key={q.id} question={q} onClick={() => onCardClick(q)} />
           ))}
