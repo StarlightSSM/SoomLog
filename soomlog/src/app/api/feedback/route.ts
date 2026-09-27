@@ -1,29 +1,34 @@
 // src/app/api/feedback/route.ts
+
 import { NextResponse } from 'next/server'
-import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 const USE_MOCK = process.env.OPENAI_MOCK === 'true'
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 export async function POST(request: Request) {
   const supabase = await createClient()
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    return NextResponse.json(
+      { error: '로그인이 필요합니다.' },
+      { status: 401 }
+    )
   }
 
   const { userAnswerId, question, answer } = await request.json()
 
   if (!userAnswerId || !question || !answer) {
-    return NextResponse.json({ error: '필수 값이 누락됐습니다.' }, { status: 400 })
+    return NextResponse.json(
+      { error: '필수 값이 누락됐습니다.' },
+      { status: 400 }
+    )
   }
 
-  // 본인 답변이 맞는지 서버에서 재확인 (보안)
   const { data: ownedAnswer } = await supabase
     .from('user_answers')
     .select('id')
@@ -32,13 +37,15 @@ export async function POST(request: Request) {
     .single()
 
   if (!ownedAnswer) {
-    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
+    return NextResponse.json(
+      { error: '권한이 없습니다.' },
+      { status: 403 }
+    )
   }
 
   let feedback
 
   if (USE_MOCK) {
-    // 개발 중 OpenAI 결제 없이 테스트하기 위한 목업 데이터
     feedback = {
       score: 84,
       communication: 4,
@@ -72,19 +79,44 @@ export async function POST(request: Request) {
 }`
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-      })
-      feedback = JSON.parse(completion.choices[0].message.content ?? '{}')
+      const response = await fetch(
+        `${process.env.OLLAMA_BASE_URL}/api/chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.OLLAMA_MODEL ?? 'qwen3:8b',
+            messages: [
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            stream: false,
+            format: 'json',
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Ollama API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      feedback = JSON.parse(data.message?.content ?? '{}')
     } catch (err) {
-      console.error('OpenAI error:', err)
-      return NextResponse.json({ error: 'AI 평가 중 오류가 발생했습니다.' }, { status: 500 })
+      console.error('Ollama error:', err)
+
+      return NextResponse.json(
+        { error: 'AI 평가 중 오류가 발생했습니다.' },
+        { status: 500 }
+      )
     }
   }
 
-  // service_role 키로 ai_feedbacks에 서버 사이드 insert (RLS 우회)
   const serviceSupabase = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -108,7 +140,11 @@ export async function POST(request: Request) {
 
   if (insertError) {
     console.error('Insert error:', insertError)
-    return NextResponse.json({ error: '저장 중 오류가 발생했습니다.' }, { status: 500 })
+
+    return NextResponse.json(
+      { error: '저장 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
   }
 
   return NextResponse.json({ feedback: saved })
